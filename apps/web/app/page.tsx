@@ -8,9 +8,12 @@ type DealListItem = {
   organizerWallet: string;
   title: string;
   status: string;
+  statusReason?: string | null;
   minParticipants: number;
   maxParticipants: number;
   currentParticipants: number;
+  depositPaidParticipants: number;
+  finalPaidParticipants: number;
   createdAt: string;
 };
 
@@ -19,11 +22,14 @@ type DealDetail = DealListItem & {
   depositPerParticipant: string;
   depositDeadlineAt: string;
   finalDeadlineAt: string;
-  statusReason?: string | null;
   memberships: {
     participantWallet: string;
     role: string;
     joinedAt: string;
+    depositPaidAt?: string | null;
+    depositTxHash?: string | null;
+    finalPaidAt?: string | null;
+    finalTxHash?: string | null;
   }[];
 };
 
@@ -55,6 +61,16 @@ export default function HomePage() {
     participantWallet: "0x0000000000000000000000000000000000000000",
     inviteToken: ""
   });
+  const [paymentForm, setPaymentForm] = useState({
+    participantWallet: "0x0000000000000000000000000000000000000000",
+    phase: "deposit" as "deposit" | "final",
+    txHash: "0x0000000000000000000000000000000000000000000000000000000000000000"
+  });
+  const [statusForm, setStatusForm] = useState({
+    organizerWallet: "0x0000000000000000000000000000000000000000",
+    action: "complete" as "complete" | "cancel" | "force_refunding",
+    reason: ""
+  });
 
   const [deals, setDeals] = useState<DealListItem[]>([]);
   const [selected, setSelected] = useState<DealDetail | null>(null);
@@ -75,7 +91,16 @@ export default function HomePage() {
       setMessage(data.error ?? "failed_to_load_deal");
       return;
     }
-    setSelected({ ...data.deal, memberships: data.memberships ?? [] });
+    const detail = { ...data.deal, memberships: data.memberships ?? [] };
+    setSelected(detail);
+    setJoinForm((prev) => ({ ...prev, dealAddress: detail.dealAddress }));
+    setStatusForm((prev) => ({ ...prev, organizerWallet: detail.organizerWallet }));
+    if ((detail.memberships?.length ?? 0) > 0) {
+      setPaymentForm((prev) => ({
+        ...prev,
+        participantWallet: detail.memberships[0].participantWallet
+      }));
+    }
   }
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
@@ -129,6 +154,64 @@ export default function HomePage() {
       setMessage("Participant joined successfully.");
       await loadDeals();
       await loadDetail(joinForm.dealAddress);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleMarkPayment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected) {
+      setMessage("select_a_deal_first");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch(`/api/deals/${selected.dealAddress}/payments`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(paymentForm)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error ?? "payment_mark_failed");
+        return;
+      }
+      setMessage(`${paymentForm.phase} payment marked.`);
+      await loadDeals();
+      await loadDetail(selected.dealAddress);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleOrganizerStatus(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selected) {
+      setMessage("select_a_deal_first");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      const res = await fetch(`/api/deals/${selected.dealAddress}/status`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          organizerWallet: statusForm.organizerWallet,
+          action: statusForm.action,
+          reason: statusForm.reason || undefined
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMessage(data.error ?? "status_update_failed");
+        return;
+      }
+      setMessage(`Deal status updated: ${data.status ?? statusForm.action}`);
+      await loadDeals();
+      await loadDetail(selected.dealAddress);
     } finally {
       setBusy(false);
     }
@@ -322,7 +405,13 @@ export default function HomePage() {
               <strong>{deal.title}</strong>
               <span>{deal.dealAddress}</span>
               <span>
-                {deal.currentParticipants}/{deal.maxParticipants} participants
+                Joined: {deal.currentParticipants}/{deal.maxParticipants}
+              </span>
+              <span>
+                Deposit paid: {deal.depositPaidParticipants}/{deal.minParticipants}
+              </span>
+              <span>
+                Final paid: {deal.finalPaidParticipants}/{deal.minParticipants}
               </span>
               <span className="pill">{deal.status}</span>
             </button>
@@ -343,17 +432,109 @@ export default function HomePage() {
           <p>
             Participants: {selected.currentParticipants}/{selected.maxParticipants}
           </p>
+          <p>
+            Deposit paid quorum: {selected.depositPaidParticipants}/{selected.minParticipants}
+          </p>
+          <p>
+            Final paid quorum: {selected.finalPaidParticipants}/{selected.minParticipants}
+          </p>
           <p>Unit Price: {selected.unitPrice}</p>
           <p>Deposit: {selected.depositPerParticipant}</p>
+          {selected.statusReason ? <p className="muted">Reason: {selected.statusReason}</p> : null}
           <h3>Memberships</h3>
           {selected.memberships.length === 0 ? <p className="muted">No members yet.</p> : null}
           <ul>
             {selected.memberships.map((m) => (
               <li key={`${m.participantWallet}-${m.joinedAt}`}>
-                {m.participantWallet} ({m.role})
+                {m.participantWallet} ({m.role}) | deposit: {m.depositPaidAt ? "paid" : "pending"} | final:{" "}
+                {m.finalPaidAt ? "paid" : "pending"}
               </li>
             ))}
           </ul>
+
+          <h3>Member Payment Actions</h3>
+          <form onSubmit={handleMarkPayment} className="form">
+            <label>
+              Participant Wallet
+              <input
+                value={paymentForm.participantWallet}
+                onChange={(e) =>
+                  setPaymentForm((prev) => ({ ...prev, participantWallet: e.target.value }))
+                }
+                required
+              />
+            </label>
+            <div className="formRow">
+              <label>
+                Payment Phase
+                <select
+                  value={paymentForm.phase}
+                  onChange={(e) =>
+                    setPaymentForm((prev) => ({
+                      ...prev,
+                      phase: e.target.value as "deposit" | "final"
+                    }))
+                  }
+                >
+                  <option value="deposit">deposit</option>
+                  <option value="final">final</option>
+                </select>
+              </label>
+              <label>
+                Transaction Hash
+                <input
+                  value={paymentForm.txHash}
+                  onChange={(e) => setPaymentForm((prev) => ({ ...prev, txHash: e.target.value }))}
+                  required
+                />
+              </label>
+            </div>
+            <button type="submit" disabled={busy}>
+              Mark Payment
+            </button>
+          </form>
+
+          <h3>Organizer Actions</h3>
+          <form onSubmit={handleOrganizerStatus} className="form">
+            <label>
+              Organizer Wallet
+              <input
+                value={statusForm.organizerWallet}
+                onChange={(e) =>
+                  setStatusForm((prev) => ({ ...prev, organizerWallet: e.target.value }))
+                }
+                required
+              />
+            </label>
+            <div className="formRow">
+              <label>
+                Action
+                <select
+                  value={statusForm.action}
+                  onChange={(e) =>
+                    setStatusForm((prev) => ({
+                      ...prev,
+                      action: e.target.value as "complete" | "cancel" | "force_refunding"
+                    }))
+                  }
+                >
+                  <option value="complete">complete</option>
+                  <option value="cancel">cancel</option>
+                  <option value="force_refunding">force_refunding</option>
+                </select>
+              </label>
+              <label>
+                Reason (optional)
+                <input
+                  value={statusForm.reason}
+                  onChange={(e) => setStatusForm((prev) => ({ ...prev, reason: e.target.value }))}
+                />
+              </label>
+            </div>
+            <button type="submit" disabled={busy}>
+              Update Status
+            </button>
+          </form>
         </section>
       ) : null}
     </main>

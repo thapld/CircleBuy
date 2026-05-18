@@ -34,6 +34,8 @@ export async function GET(
       min_participants as "minParticipants",
       max_participants as "maxParticipants",
       current_participants as "currentParticipants",
+      deposit_paid_participants as "depositPaidParticipants",
+      final_paid_participants as "finalPaidParticipants",
       deposit_deadline_at as "depositDeadlineAt",
       final_deadline_at as "finalDeadlineAt",
       created_at as "createdAt",
@@ -52,7 +54,11 @@ export async function GET(
     `select
       participant_wallet as "participantWallet",
       role,
-      joined_at as "joinedAt"
+      joined_at as "joinedAt",
+      deposit_paid_at as "depositPaidAt",
+      deposit_tx_hash as "depositTxHash",
+      final_paid_at as "finalPaidAt",
+      final_tx_hash as "finalTxHash"
     from deal_memberships
     where deal_id = $1
     order by joined_at asc`,

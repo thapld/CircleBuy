@@ -185,19 +185,37 @@ async function syncFactoryEvents() {
 }
 
 async function promoteDealsByParticipants() {
-  const promoted = await pool.query<{ deal_address: string }>(
+  const depositPromoted = await pool.query<{ deal_address: string }>(
     `update deals
      set status = 'final_payment_open',
-         status_reason = 'min_participants_reached',
+         status_reason = 'deposit_quorum_reached',
          updated_at = now()
      where status = 'deposit_open'
-       and current_participants >= min_participants
+       and deposit_paid_participants >= min_participants
+       and now() <= deposit_deadline_at
+     returning deal_address`
+  );
+
+  if ((depositPromoted.rowCount ?? 0) > 0) {
+    logger.info(
+      { count: depositPromoted.rowCount ?? 0 },
+      "deals promoted to final_payment_open"
+    );
+  }
+
+  const finalPromoted = await pool.query<{ deal_address: string }>(
+    `update deals
+     set status = 'ready_to_order',
+         status_reason = 'final_quorum_reached',
+         updated_at = now()
+     where status = 'final_payment_open'
+       and final_paid_participants >= min_participants
        and now() <= final_deadline_at
      returning deal_address`
   );
 
-  if ((promoted.rowCount ?? 0) > 0) {
-    logger.info({ count: promoted.rowCount ?? 0 }, "deals promoted to final_payment_open");
+  if ((finalPromoted.rowCount ?? 0) > 0) {
+    logger.info({ count: finalPromoted.rowCount ?? 0 }, "deals promoted to ready_to_order");
   }
 }
 

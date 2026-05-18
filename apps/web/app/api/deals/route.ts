@@ -50,6 +50,8 @@ export async function GET(req: NextRequest) {
       min_participants as "minParticipants",
       max_participants as "maxParticipants",
       current_participants as "currentParticipants",
+      deposit_paid_participants as "depositPaidParticipants",
+      final_paid_participants as "finalPaidParticipants",
       deposit_deadline_at as "depositDeadlineAt",
       final_deadline_at as "finalDeadlineAt",
       created_at as "createdAt"
