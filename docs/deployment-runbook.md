@@ -54,6 +54,35 @@
 3. Start command: `npm run start`.
 4. Set worker env vars.
 
+## GitHub Actions auto deploy
+
+Production deploy automation is defined in:
+- `.github/workflows/deploy-production.yml`
+
+Trigger:
+- Push to `master`
+- Manual `workflow_dispatch`
+
+Required GitHub repository secrets:
+
+### Vercel (web)
+
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
+
+### Railway (worker)
+
+- `RAILWAY_TOKEN` (Project Token recommended)
+- `RAILWAY_PROJECT_ID`
+- `RAILWAY_ENVIRONMENT_ID`
+- `RAILWAY_SERVICE_ID`
+
+Behavior:
+- Runs verify step (`npm ci`, `typecheck`, `build`)
+- Deploys web to Vercel production via `vercel build` + `vercel deploy --prebuilt`
+- Deploys worker to Railway via `railway up --path apps/worker`
+
 ## Go-live checks
 
 1. Health endpoint returns 200.

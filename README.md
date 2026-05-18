@@ -155,6 +155,20 @@ supabase/
 - Worker: Railway (root `apps/worker`)
 - Database: Supabase PostgreSQL pooler URL
 
+## CI/CD Automation
+
+Production auto-deploy is enabled with:
+- `.github/workflows/deploy-production.yml`
+
+On each push to `master`, the pipeline:
+1. Runs `npm ci`, `npm run typecheck`, `npm run build`
+2. Deploys web (`apps/web`) to Vercel production
+3. Deploys worker (`apps/worker`) to Railway
+
+GitHub repository secrets required:
+- Vercel: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
+- Railway: `RAILWAY_TOKEN`, `RAILWAY_PROJECT_ID`, `RAILWAY_ENVIRONMENT_ID`, `RAILWAY_SERVICE_ID`
+
 ## Additional Docs
 
 - `docs/business-flow-v1.md`
