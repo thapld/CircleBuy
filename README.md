@@ -1,99 +1,89 @@
 # ArcBuy
 
-ArcBuy là nền tảng **private group-buy** chạy trên Arc testnet, được thiết kế theo mô hình CircleBuy trong các tài liệu:
+ArcBuy is a production-oriented **private group-buy** platform on Arc testnet, inspired by the CircleBuy model from:
 - Institutional Group Buy Case Study
 - Institutional Group Buy Protocol
-- On-chain Trust & Governance
+- On-chain Trust and Governance
 
-Mục tiêu là chuyển mô hình mua chung từ “niềm tin xã hội” sang “luật thực thi bằng smart contract”, với kiến trúc dễ triển khai nhanh:
-- Web/API: Vercel
-- Worker/Indexer: Railway
-- Database: Supabase PostgreSQL
-- Smart contracts: Foundry
+The core idea is to move group-buy from social trust to **programmable trust** with smart-contract rules and auditable operational data.
 
-## 1) Bài toán thực tế
-
-Mua chung truyền thống (P2P) thường gặp các rủi ro:
-- Hub/organizer ôm tiền và biến mất (exit scam)
-- Tranh chấp giao hàng ở chặng cuối (last-mile fraud)
-- Chậm thanh toán xuyên biên giới, chi phí FX cao
-- Vốn bị “nằm chết” trong thời gian gom đơn
-
-ArcBuy xử lý bằng 3 lớp proof:
-- `Proof of Capital`: Hub stake trước 100% giá trị wholesale
-- `Proof of Settlement`: giao dịch thanh toán được ghi nhận on-chain
-- `Proof of Delivery`: oracle logistics xác nhận trạng thái giao hàng
-
-## 2) Cơ chế nghiệp vụ cốt lõi
-
-Theo các tài liệu PDF, luồng business chuẩn gồm 3 stage:
-- `Stage 1 - Proof of Capital`: Hub nạp stake vào vault trước khi nhận tiền người mua
-- `Stage 2 - Settlement`: khi đạt quota, quỹ được settle tới nhà cung cấp qua StableFX logic
-- `Stage 3 - Proof of Delivery`: theo dõi tracking, mở dispute window, sau đó release/slash
-
-### Luật chống gian lận
-- Hub không thực hiện giao hàng đúng hạn: slash collateral, hoàn tiền buyer
-- Buyer claim sai “không nhận hàng”: đối chiếu proof từ carrier API
-- Hàng lỗi/tranh chấp: đóng băng quỹ và xử lý theo policy dispute
-
-## 3) Sơ đồ tổng thể hệ thống
+## End-to-End Infographic
 
 ```mermaid
 flowchart LR
-    A["Organizer (Hub)"] --> B["ArcBuy Web App (Next.js)"]
-    P["Participant"] --> B
-    B --> D["Supabase Postgres"]
-    B --> C["ArcGroupFactory / ArcGroupDeal (Arc L1)"]
-    W["Worker / Indexer"] --> C
-    W --> D
-    O["Logistics Oracle / Carrier API"] --> W
-    W --> B
+    subgraph S1["Stage 1: Setup and Capital Proof"]
+      H["Organizer (Hub) creates private deal"] --> I["Invite token policy generated"]
+      I --> C["Hub stakes collateral / capital commitment"]
+    end
+
+    subgraph S2["Stage 2: Participation and Settlement Readiness"]
+      B["Buyer verifies invite token"] --> J["Buyer joins deal"]
+      J --> Q{"Min participants reached?"}
+      Q -- "No" --> R["Wait until deadline"]
+      R --> RF["Refund path"]
+      Q -- "Yes" --> P["Final payment phase"]
+      P --> O["Ready to order / settlement path"]
+    end
+
+    subgraph S3["Stage 3: Delivery Proof and Release"]
+      O --> T["Hub submits tracking IDs"]
+      T --> L["Logistics oracle verifies delivered status"]
+      L --> D{"Dispute in window?"}
+      D -- "No" --> REL["Release funds and margin by policy"]
+      D -- "Yes" --> DIS["Freeze / slash / refund policy path"]
+    end
+
+    H --> WEB["ArcBuy Web/API"]
+    B --> WEB
+    WEB --> DB["Supabase Postgres"]
+    WEB --> CHAIN["Arc Smart Contracts"]
+    W["Worker / Indexer"] --> CHAIN
+    W --> DB
+    ORA["Carrier/Logistics Oracle"] --> W
 ```
 
-## 4) Sơ đồ luồng nghiệp vụ end-to-end
+## What Problem ArcBuy Solves
+
+Traditional group-buy channels usually suffer from:
+- Counterparty risk (hub disappears with funds)
+- Last-mile delivery disputes
+- Slow and expensive cross-border settlement
+- Idle capital during aggregation windows
+
+ArcBuy addresses this with three proof layers:
+- **Proof of Capital**: upfront collateral commitment by organizer
+- **Proof of Settlement**: auditable transaction trail
+- **Proof of Delivery**: oracle-driven delivery verification
+
+## Business and Protocol Model
+
+From the source materials, ArcBuy follows a 3-stage operational model:
+1. **Capital Proof**: organizer stakes before taking buyer capital exposure.
+2. **Settlement**: funds move when quorum and lifecycle conditions are met.
+3. **Delivery Proof**: release/slash/refund decisions based on verified delivery and dispute policy.
+
+## System Architecture
 
 ```mermaid
-sequenceDiagram
-    participant Hub as Organizer/Hub
-    participant Web as ArcBuy Web/API
-    participant Chain as Arc Smart Contracts
-    participant DB as Supabase
-    participant Buyer as Participant
-    participant Worker as Worker/Indexer
-    participant Oracle as Logistics Oracle
-
-    Hub->>Web: Tạo private deal + invite policy
-    Web->>DB: Lưu draft deal + invite token metadata
-    Hub->>Chain: createDeal() trên Factory
-    Worker->>Chain: Đồng bộ DealCreated event
-    Worker->>DB: Upsert deal canonical state
-
-    Buyer->>Web: Mở link invite
-    Web->>Web: Verify signed invite token
-    Buyer->>Web: Join deal bằng wallet
-    Web->>DB: Ghi membership + tăng participant count
-
-    Note over Hub,Chain: Stage 1 - Proof of Capital
-    Note over Chain: Hub stake/collateral trước khi nhận vốn buyer
-
-    Note over Chain: Stage 2 - Settlement khi đạt quota
-    Chain-->>Hub: Deal chuyển ready_to_order / settlement path
-
-    Note over Oracle,Worker: Stage 3 - Proof of Delivery
-    Oracle->>Worker: Delivered status + tracking proof
-    Worker->>DB: Cập nhật trạng thái dispute/release/refund
+flowchart TD
+    User["Organizer / Buyer"] --> Web["Next.js Web + API (apps/web)"]
+    Web --> DB["Supabase PostgreSQL"]
+    Web --> Contracts["ArcGroupFactory + ArcGroupDeal"]
+    Worker["Worker + Indexer (apps/worker)"] --> Contracts
+    Worker --> DB
+    Oracle["Carrier / Logistics Oracle"] --> Worker
 ```
 
-## 5) State machine của deal
+## Deal Lifecycle
 
 ```mermaid
 stateDiagram-v2
     [*] --> deposit_open
     deposit_open --> final_payment_open: min participants reached
     deposit_open --> refunding: deposit deadline expired
-    final_payment_open --> ready_to_order: final payment threshold reached
+    final_payment_open --> ready_to_order: payment threshold reached
     final_payment_open --> refunding: final deadline expired
-    ready_to_order --> completed: delivery verified + release
+    ready_to_order --> completed: delivery verified and release
     ready_to_order --> refunding: slash/refund policy
     deposit_open --> cancelled: organizer cancel
     final_payment_open --> cancelled: organizer cancel
@@ -102,51 +92,24 @@ stateDiagram-v2
     completed --> [*]
 ```
 
-## 6) Trust score và governance (theo tài liệu)
+## Current MVP Features
 
-Công thức tham chiếu:
+- Private deal creation with signed invite token issuance
+- Invite token verification before joining
+- Join flow by `dealAddress + inviteToken + participantWallet`
+- Deal list and detail views with membership data
+- Worker sync for on-chain `DealCreated` events
+- Lifecycle sweeps for deadline-based transitions
+- Health and readiness endpoints for deployment checks
 
-`Hub Trust Score = (KYB * 0.3) + (Delivery Speed * 0.4) + (Stake Volume * 0.3)`
-
-Ý nghĩa:
-- KYB xác thực pháp nhân giúp loại bỏ danh tính ẩn danh
-- Delivery speed phản ánh năng lực vận hành thực tế
-- Stake volume phản ánh mức cam kết vốn và độ tin cậy tài chính
-
-## 7) Kiến trúc code hiện tại
-
-```txt
-apps/
-  web/         Next.js UI + API routes
-  worker/      Event indexer + lifecycle reconciliation
-packages/
-  db/          DB migration runner + record types
-  shared/      Shared constants/types/ABI fragments
-contracts/     ArcGroupFactory + ArcGroupDeal + tests
-supabase/
-  migrations/  SQL migrations
-.github/
-  workflows/   CI pipeline
-```
-
-## 8) Các chức năng đã có trong MVP
-
-- Tạo private deal và phát hành invite token có chữ ký server
-- Verify invite token trước khi join
-- Join deal theo `dealAddress` + `inviteToken` + `participantWallet`
-- Theo dõi danh sách deal và chi tiết memberships
-- Worker đồng bộ event `DealCreated` từ chain về database
-- Worker sweep lifecycle cho các deal hết hạn
-- Health và readiness endpoints cho deploy
-
-## 9) API chính
+## API Surface
 
 - `POST /api/deals`
-  - Tạo/cập nhật deal và trả `inviteToken`
+  - Create/update a private deal and return `inviteToken`
 - `GET /api/deals`
-  - Danh sách deal (có filter `?status=`)
+  - List deals (`?status=` supported)
 - `GET /api/deals/:dealAddress`
-  - Chi tiết deal + danh sách thành viên
+  - Deal detail + memberships
 - `POST /api/invites`
   - Verify invite token
 - `POST /api/deals/:dealAddress/join`
@@ -154,39 +117,55 @@ supabase/
 - `GET /api/health`
   - Liveness + DB ping
 - `GET /api/readiness`
-  - Readiness check env + DB
+  - Readiness checks (env + DB)
 
-## 10) Chạy local
+## Repository Structure
 
-1. Cài Node.js 20+ và npm 10+.
-2. Cài dependency:
+```txt
+apps/
+  web/         Next.js UI + API routes
+  worker/      Event indexer + lifecycle reconciliation
+packages/
+  db/          Migration runner + DB record types
+  shared/      Shared constants/types/ABI fragments
+contracts/     ArcGroupFactory + ArcGroupDeal + tests
+supabase/
+  migrations/  SQL migrations
+.github/
+  workflows/   CI
+```
+
+## Local Development
+
+1. Install Node.js 20+ and npm 10+.
+2. Install dependencies:
    - `npm install`
-3. Copy env:
+3. Copy env templates:
    - `apps/web/.env.example` -> `apps/web/.env.local`
    - `apps/worker/.env.example` -> `apps/worker/.env`
-4. Chạy migration:
+4. Run migrations:
    - `npm run db:migrate`
-5. Chạy app:
+5. Run services:
    - `npm run dev:web`
    - `npm run dev:worker`
 
-## 11) Deploy nhanh production-like
+## Deployment
 
 - Web/API: Vercel (root `apps/web`)
 - Worker: Railway (root `apps/worker`)
-- DB: Supabase (pooler `DATABASE_URL`)
+- Database: Supabase PostgreSQL pooler URL
 
-Checklist đầy đủ:
+## Additional Docs
+
 - `docs/business-flow-v1.md`
 - `docs/arcbuy-production-technical-plan.md`
 - `docs/deployment-runbook.md`
 - `docs/superpowers/specs/2026-05-18-arcgroup-design.md`
 
-## 12) Lưu ý quan trọng
+## Roadmap Notes
 
-- Repo hiện là production-MVP theo đúng logic cốt lõi từ tài liệu CircleBuy.
-- Các phần cần mở rộng ở phase sau:
-  - dispute arbitration chuyên sâu
-  - tích hợp carrier oracle thật
-  - cross-border payout rails đầy đủ
-  - policy engine theo từng quốc gia/đối tác
+This repo is a production-MVP baseline. Planned next layers include:
+- Advanced dispute arbitration workflow
+- Deeper carrier-oracle integration
+- Extended cross-border payout rails
+- Policy engine per market/jurisdiction
