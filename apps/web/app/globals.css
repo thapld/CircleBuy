@@ -1,0 +1,168 @@
+:root {
+  --bg: #f2f6fb;
+  --surface: #ffffff;
+  --text: #132033;
+  --muted: #516175;
+  --primary: #0a8f75;
+  --accent: #0c7dc2;
+  --border: #d4deeb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 90% 10%, rgba(12, 125, 194, 0.12), transparent 42%),
+    radial-gradient(circle at 10% 90%, rgba(10, 143, 117, 0.1), transparent 40%),
+    var(--bg);
+  color: var(--text);
+}
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1rem 4rem;
+  display: grid;
+  gap: 1rem;
+}
+
+.card {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.06);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.hero h1 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.form label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+input,
+textarea,
+button {
+  font: inherit;
+}
+
+input,
+textarea {
+  width: 100%;
+  border: 1px solid #bfcddd;
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  color: var(--text);
+  background: #fff;
+}
+
+textarea {
+  resize: vertical;
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.status {
+  margin-top: 0.5rem;
+  color: #0b7e60;
+}
+
+.output .label {
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+}
+
+.dealList {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.dealItem {
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #f8fbff;
+  color: var(--text);
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.9rem;
+}
+
+.dealItem strong {
+  font-size: 1rem;
+}
+
+.dealItem span {
+  font-size: 0.88rem;
+}
+
+.pill {
+  display: inline-block;
+  width: fit-content;
+  padding: 0.2rem 0.5rem;
+  background: #e8f4ff;
+  color: #035c93;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 860px) {
+  .grid2 {
+    grid-template-columns: 1fr;
+  }
+
+  .formRow {
+    grid-template-columns: 1fr;
+  }
+}

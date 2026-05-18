@@ -1,0 +1,26 @@
+{
+  "name": "arcgroup",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace @arcgroup/web run dev",
+    "dev:worker": "npm --workspace @arcgroup/worker run dev",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:generate": "npm --workspace @arcgroup/db run generate",
+    "db:migrate": "npm --workspace @arcgroup/db run migrate"
+  },
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
+
