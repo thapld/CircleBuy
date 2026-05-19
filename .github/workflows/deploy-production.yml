@@ -7,7 +7,32 @@ on:
   workflow_dispatch:
 
 jobs:
+  check-secrets:
+    runs-on: ubuntu-latest
+    outputs:
+      has_vercel: ${{ steps.vercel.outputs.defined }}
+      has_railway: ${{ steps.railway.outputs.defined }}
+    steps:
+      - name: Check Vercel Secrets
+        id: vercel
+        run: |
+          if [ -n "${{ secrets.VERCEL_TOKEN }}" ] && [ -n "${{ secrets.VERCEL_ORG_ID }}" ] && [ -n "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
+            echo "defined=true" >> $GITHUB_OUTPUT
+          else
+            echo "defined=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check Railway Secrets
+        id: railway
+        run: |
+          if [ -n "${{ secrets.RAILWAY_TOKEN }}" ] && [ -n "${{ secrets.RAILWAY_PROJECT_ID }}" ] && [ -n "${{ secrets.RAILWAY_ENVIRONMENT_ID }}" ] && [ -n "${{ secrets.RAILWAY_SERVICE_ID }}" ]; then
+            echo "defined=true" >> $GITHUB_OUTPUT
+          else
+            echo "defined=false" >> $GITHUB_OUTPUT
+          fi
+
   verify:
+    needs: check-secrets
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -28,88 +53,58 @@ jobs:
           npm run build --if-present
 
   deploy-web-vercel:
-    needs: verify
+    needs: [check-secrets, verify]
+    if: needs.check-secrets.outputs.has_vercel == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check Vercel Secrets
-        id: check_secrets
-        shell: bash
-        run: |
-          if [ -z "${{ secrets.VERCEL_TOKEN }}" ] || [ -z "${{ secrets.VERCEL_ORG_ID }}" ] || [ -z "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
-            echo "Missing Vercel secrets. Skipping deploy."
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Setup Node.js
-        if: steps:check_secrets.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
 
       - name: Install dependencies
-        if: steps:check_secrets.outputs.skip != 'true'
         run: npm ci
 
       - name: Install Vercel CLI
-        if: steps:check_secrets.outputs.skip != 'true'
         run: npm install --global vercel@latest
 
       - name: Pull Vercel Environment Information
-        if: steps:check_secrets.outputs.skip != 'true'
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Build Vercel Project Artifacts
-        if: steps:check_secrets.outputs.skip != 'true'
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy Project Artifacts to Vercel
-        if: steps:check_secrets.outputs.skip != 'true'
         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
 
   deploy-worker-railway:
-    needs: verify
+    needs: [check-secrets, verify]
+    if: needs.check-secrets.outputs.has_railway == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check Railway Secrets
-        id: check_secrets
-        shell: bash
-        run: |
-          if [ -z "${{ secrets.RAILWAY_TOKEN }}" ] || [ -z "${{ secrets.RAILWAY_PROJECT_ID }}" ] || [ -z "${{ secrets.RAILWAY_ENVIRONMENT_ID }}" ] || [ -z "${{ secrets.RAILWAY_SERVICE_ID }}" ]; then
-            echo "Missing Railway secrets. Skipping deploy."
-            echo "skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Setup Node.js
-        if: steps:check_secrets.outputs.skip != 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
 
       - name: Install dependencies
-        if: steps:check_secrets.outputs.skip != 'true'
         run: npm ci
 
       - name: Install Railway CLI
-        if: steps:check_secrets.outputs.skip != 'true'
         run: npm install -g @railway/cli
 
       - name: Deploy to Railway
-        if: steps:check_secrets.outputs.skip != 'true'
         run: railway up --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
