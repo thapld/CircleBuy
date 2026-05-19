@@ -80,7 +80,7 @@ jobs:
 
       # Railway vẫn dùng --path bình thường
       - name: Deploy to Railway
-        run: railway up --detach --path apps/worker
+        run: railway up --detach --path-as-root apps/worker
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
